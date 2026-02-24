@@ -116,6 +116,37 @@ def tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-zA-Z0-9]{2,}", text.lower()))
 
 
+def is_factoid_query(query: str) -> bool:
+    q = query.lower().strip()
+    fact_patterns = [
+        "name",
+        "cgpa",
+        "gpa",
+        "email",
+        "phone",
+        "contact",
+        "linkedin",
+        "github",
+        "percentage",
+        "what is sakshi",
+        "who is sakshi",
+    ]
+    broad_patterns = [
+        "tell me about",
+        "explain",
+        "summary",
+        "summarize",
+        "details",
+        "experience",
+        "project",
+        "skills",
+        "education",
+    ]
+    if any(token in q for token in broad_patterns):
+        return False
+    return any(token in q for token in fact_patterns) or len(q.split()) <= 6
+
+
 def relevant_context(query: str, full_context: str, max_chunks: int = 3) -> str:
     chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n", full_context) if chunk.strip()]
     if not chunks:
@@ -138,17 +169,27 @@ def relevant_context(query: str, full_context: str, max_chunks: int = 3) -> str:
     return "\n\n".join(chunk for _, chunk in scored[:max_chunks])
 
 
-def build_messages(user_message: str, history: list[ChatMessage], context: str) -> list[dict[str, str]]:
+def build_messages(
+    user_message: str, history: list[ChatMessage], context: str, factoid_query: bool
+) -> list[dict[str, str]]:
     system_prompt = (
         "You are Sakshi Waitage's portfolio assistant. "
         "Answer only using the resume/context provided in the user message. "
         "If the answer is not in context, say you do not have that information. "
         "Keep responses concise, factual, and professional. "
-        "Use this structure in every response:\n"
-        "1) Summary: one short sentence.\n"
-        "2) Details: 2-5 bullet points.\n"
-        "3) If data is missing, add 'Missing:' with what is not available."
     )
+    if factoid_query:
+        system_prompt += (
+            "For short fact questions (for example name, CGPA, email, phone), "
+            "return a short direct answer in 1 sentence. No bullets."
+        )
+    else:
+        system_prompt += (
+            "Use this structure:\n"
+            "1) Summary: one short sentence.\n"
+            "2) Details: 2-5 bullet points.\n"
+            "3) If data is missing, add 'Missing:' with what is not available."
+        )
 
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
     for item in history[-4:]:
@@ -263,7 +304,13 @@ def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or str(uuid.uuid4())
     context = load_resume_context()
     focused_context = relevant_context(request.message, context)
-    messages = build_messages(request.message, request.history[-4:], focused_context)
+    factoid_query = is_factoid_query(request.message)
+    messages = build_messages(
+        request.message,
+        request.history[-4:],
+        focused_context,
+        factoid_query=factoid_query,
+    )
     answer = ask_openrouter(messages)
 
     save_message(session_id=session_id, role="user", content=request.message)
