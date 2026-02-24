@@ -50,7 +50,7 @@ export default function ResumeChatSection() {
             const response = await sendChatMessage({
                 message: text,
                 session_id: sessionId,
-                history: nextMessages.slice(-8),
+                history: nextMessages.slice(-4),
             });
 
             setSessionId(response.session_id);

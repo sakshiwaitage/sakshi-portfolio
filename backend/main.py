@@ -1,7 +1,6 @@
 import os
 import re
 import sqlite3
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +24,9 @@ DB_PATH = DATA_DIR / "chat_history.db"
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-20b:free")
+OPENROUTER_MAX_OUTPUT_TOKENS = int(os.getenv("OPENROUTER_MAX_OUTPUT_TOKENS", "220"))
+OPENROUTER_TIMEOUT_CONNECT = float(os.getenv("OPENROUTER_TIMEOUT_CONNECT", "5"))
+OPENROUTER_TIMEOUT_READ = float(os.getenv("OPENROUTER_TIMEOUT_READ", "18"))
 OPENROUTER_FALLBACK_MODELS = [
     model.strip()
     for model in os.getenv(
@@ -114,7 +116,7 @@ def tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-zA-Z0-9]{2,}", text.lower()))
 
 
-def relevant_context(query: str, full_context: str, max_chunks: int = 6) -> str:
+def relevant_context(query: str, full_context: str, max_chunks: int = 3) -> str:
     chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n", full_context) if chunk.strip()]
     if not chunks:
         return ""
@@ -149,7 +151,7 @@ def build_messages(user_message: str, history: list[ChatMessage], context: str) 
     )
 
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
-    for item in history[-6:]:
+    for item in history[-4:]:
         messages.append({"role": item.role, "content": item.content})
 
     messages.append(
@@ -188,14 +190,16 @@ def ask_openrouter(messages: list[dict[str, str]]) -> str:
             "model": model,
             "messages": messages,
             "temperature": 0.2,
+            "max_tokens": OPENROUTER_MAX_OUTPUT_TOKENS,
         }
         try:
-            response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=45)
+            response = requests.post(
+                OPENROUTER_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=(OPENROUTER_TIMEOUT_CONNECT, OPENROUTER_TIMEOUT_READ),
+            )
             if response.status_code == 429:
-                retry_after = response.headers.get("Retry-After")
-                if retry_after and retry_after.isdigit():
-                    # Respect provider cooldown for current model before trying another one.
-                    time.sleep(min(int(retry_after), 5))
                 errors.append(f"{model}: rate_limited")
                 continue
             response.raise_for_status()
@@ -208,6 +212,10 @@ def ask_openrouter(messages: list[dict[str, str]]) -> str:
             return str(content).strip()
         except requests.HTTPError as exc:
             errors.append(f"{model}: {exc}")
+            status_code = exc.response.status_code if exc.response is not None else None
+            # These errors are usually configuration problems, not transient.
+            if status_code in {400, 401, 403, 404}:
+                break
             continue
         except requests.RequestException as exc:
             errors.append(f"{model}: {exc}")
@@ -255,7 +263,7 @@ def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or str(uuid.uuid4())
     context = load_resume_context()
     focused_context = relevant_context(request.message, context)
-    messages = build_messages(request.message, request.history, focused_context)
+    messages = build_messages(request.message, request.history[-4:], focused_context)
     answer = ask_openrouter(messages)
 
     save_message(session_id=session_id, role="user", content=request.message)
