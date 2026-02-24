@@ -8,6 +8,7 @@ import ExperienceSection from "./sections/experience-section";
 import HeroSection from "./sections/hero-section";
 import OtherSitesSection from "./sections/othersite";
 import ProjectsSection from "./sections/projects-section";
+import ResumeChatSection from "./sections/resume-chat-section";
 import SkillsSection from "./sections/skills-section";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
             <LenisScroll />
             <HeroSection />
             <AboutSection />
+            <ResumeChatSection />
             <ProjectsSection />
             <ExperienceSection />
             <EducationSection />

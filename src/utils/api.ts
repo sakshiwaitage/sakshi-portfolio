@@ -5,6 +5,23 @@
 // Backend API base URL
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+export interface ChatMessage {
+    role: "user" | "assistant";
+    content: string;
+}
+
+export interface ChatRequest {
+    message: string;
+    session_id?: string;
+    history?: ChatMessage[];
+}
+
+export interface ChatResponse {
+    session_id: string;
+    answer: string;
+    model: string;
+}
+
 /**
  * Download resume PDF file
  * @returns {Promise<void>}
@@ -52,4 +69,24 @@ export const checkBackendHealth = async () => {
         console.error("Backend health check failed:", error);
         return false;
     }
+};
+
+/**
+ * Send a resume-grounded chat message to backend.
+ */
+export const sendChatMessage = async (payload: ChatRequest): Promise<ChatResponse> => {
+    const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Chat request failed." }));
+        throw new Error(error.detail || "Chat request failed.");
+    }
+
+    return response.json();
 };
