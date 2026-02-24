@@ -1,6 +1,4 @@
-/**
- * API Configuration and utilities for portfolio backend
- */
+//API Configuration and utilities for portfolio backend
 
 // Backend API base URL
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -22,10 +20,8 @@ export interface ChatResponse {
     model: string;
 }
 
-/**
- * Download resume PDF file
- * @returns {Promise<void>}
- */
+// Download resume PDF file @returns {Promise<void>}
+
 export const downloadResume = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/resume`);
@@ -49,18 +45,14 @@ export const downloadResume = async () => {
     }
 };
 
-/**
- * Open resume in a new tab
- * @returns {void}
- */
+// Open resume in a new tab @returns {void}
+ 
 export const viewResume = () => {
     window.open(`${API_BASE_URL}/api/resume/view`, "_blank");
 };
 
-/**
- * Check backend health
- * @returns {Promise<boolean>}
- */
+//Check backend health @returns {Promise<boolean>}
+ 
 export const checkBackendHealth = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/health`);
@@ -71,9 +63,8 @@ export const checkBackendHealth = async () => {
     }
 };
 
-/**
- * Send a resume-grounded chat message to backend.
- */
+//Send a resume-grounded chat message to backend.
+
 export const sendChatMessage = async (payload: ChatRequest): Promise<ChatResponse> => {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
